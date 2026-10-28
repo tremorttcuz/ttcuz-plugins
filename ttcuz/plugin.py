@@ -1,0 +1,183 @@
+"""Pack a folder into a .ctt plugin.
+
+    python3 -m ttcuz.plugin examples/hello
+    python3 -m ttcuz.plugin examples/hello -o out/hello.ctt
+
+The folder holds `manifest.json`, the plugin's Java under `java/` and an
+optional `icon.png`. Out comes a `.ctt`: a zip with exactly `manifest.json`,
+`classes.dex` and, when present, `icon.png`, within the limits the loader
+enforces (16 MiB dex, 64 KiB manifest, 1 MiB icon).
+
+The plugin is compiled against `android.jar` and the plugin API kept in
+`plugins/sdk/` (signatures of the loader API). The API classes are left out of the dex: the
+app that loads the plugin provides them, and a second copy would be a different
+class with the same name.
+
+The toolchain is the one the APK build downloads into `tools/`, so whichever
+runs first fetches it and the other reuses it.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import sys
+import tempfile
+import zipfile
+
+from .toolchain import Toolchain, _java, _run
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# the full project keeps the API in plugins/sdk; the standalone plugin kit keeps it in sdk/
+API_SOURCES = next((path for path in (os.path.join(ROOT, "plugins", "sdk"), os.path.join(ROOT, "sdk"))
+                    if os.path.isdir(path)), os.path.join(ROOT, "plugins", "sdk"))
+
+REQUIRED = ("id", "entry")
+API = 1                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API
+TIKTOK = "47.2.41"
+DEX_LIMIT = 16 * 1024 * 1024
+MANIFEST_LIMIT = 64 * 1024
+ICON_LIMIT = 1024 * 1024
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+
+class PluginError(Exception):
+    pass
+
+
+def _java_files(root: str) -> list:
+    out = []
+    for dirpath, _dirs, names in os.walk(root):
+        out += [os.path.join(dirpath, n) for n in names if n.endswith(".java")]
+    return sorted(out)
+
+
+def _class_files(root: str) -> list:
+    out = []
+    for dirpath, _dirs, names in os.walk(root):
+        out += [os.path.join(dirpath, n) for n in names if n.endswith(".class")]
+    return sorted(out)
+
+
+def _javac(classpath: str, out_dir: str, files: list) -> None:
+    javac = shutil.which("javac")
+    if not javac:
+        raise PluginError("javac not found: install JDK 17 or newer")
+    _run([javac, "-nowarn", "-Xlint:-options", "-encoding", "UTF-8",
+          "-cp", classpath, "--release", "17", "-d", out_dir] + files)
+
+
+def check_manifest(manifest: dict) -> dict:
+    """The same rules the loader applies, so a plugin that packs is a plugin that installs."""
+    missing = [field for field in REQUIRED if not str(manifest.get(field, "")).strip()]
+    if missing:
+        raise PluginError("manifest.json has no %s" % ", ".join(missing))
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}", str(manifest["id"])):
+        raise PluginError("id %r: Latin letters, digits, '.', '-' and '_', starting with a letter or digit, "
+                          "at most 128" % manifest["id"])
+    if not re.fullmatch(r"[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)+", str(manifest["entry"])):
+        raise PluginError("entry %r is not a fully qualified class name" % manifest["entry"])
+    api = manifest.get("api", API)
+    if api != API:
+        raise PluginError("api must be %d: the loader in this ttcuz speaks Plugin API %d" % (API, API))
+    tiktok = manifest.get("tiktok", "")
+    if tiktok not in ("", TIKTOK):
+        raise PluginError("tiktok %r: this ttcuz is TikTok %s" % (tiktok, TIKTOK))
+    return manifest
+
+
+def build(folder: str, out: str | None, tools_dir: str) -> str:
+    folder = os.path.abspath(folder)
+    manifest_path = os.path.join(folder, "manifest.json")
+    if not os.path.isfile(manifest_path):
+        raise PluginError("no manifest.json in %s" % folder)
+    with open(manifest_path, "rb") as handle:
+        raw_manifest = handle.read()
+    if len(raw_manifest) > MANIFEST_LIMIT:
+        raise PluginError("manifest.json is over 64 KiB")
+    try:
+        manifest = check_manifest(json.loads(raw_manifest.decode("utf-8")))
+    except ValueError as error:
+        raise PluginError("manifest.json is not valid JSON: %s" % error)
+
+    sources = _java_files(os.path.join(folder, "java"))
+    if not sources:
+        raise PluginError("no .java under %s" % os.path.join(folder, "java"))
+    icon = os.path.join(folder, "icon.png")
+    if os.path.isfile(icon):
+        data = open(icon, "rb").read()
+        if len(data) > ICON_LIMIT:
+            raise PluginError("icon.png is over 1 MiB")
+        if not data.startswith(PNG_MAGIC):
+            raise PluginError("icon.png is not a PNG")
+    else:
+        icon = None
+    if not os.path.isdir(API_SOURCES):
+        raise PluginError("plugin API sources are missing: %s" % API_SOURCES)
+
+    out = os.path.abspath(out or os.path.join(folder, "%s.ctt" % manifest["id"]))
+    tools = Toolchain(tools_dir)
+    room = tempfile.mkdtemp(prefix="ttcuz-plugin-")
+    try:
+        api, classes, dex = (os.path.join(room, n) for n in ("api", "classes", "dex"))
+        for path in (api, classes, dex):
+            os.makedirs(path)
+
+        print("==> Compiling the plugin API")
+        _javac(tools.android_jar, api, _java_files(API_SOURCES))
+
+        print("==> Compiling %s %s" % (manifest.get("name", manifest["id"]), manifest.get("version", "1.0")))
+        _javac(tools.android_jar + os.pathsep + api, classes, sources)
+        entry = os.path.join(classes, *manifest["entry"].split(".")) + ".class"
+        if not os.path.isfile(entry):
+            raise PluginError("the entry class %s is not among the compiled classes" % manifest["entry"])
+
+        print("==> One dex, without the API")
+        _run([_java(), "-cp", tools.r8, "com.android.tools.r8.D8", "--release",
+              "--min-api", "24", "--lib", tools.android_jar,
+              "--classpath", api, "--output", dex] + _class_files(classes))
+        dex_file = os.path.join(dex, "classes.dex")
+        extra = [n for n in os.listdir(dex) if n != "classes.dex"]
+        if extra:
+            raise PluginError("the plugin needs more than one dex (%s); a .ctt holds one" % ", ".join(extra))
+        if os.path.getsize(dex_file) > DEX_LIMIT:
+            raise PluginError("classes.dex is over 16 MiB")
+
+        print("==> Packing %s" % os.path.basename(out))
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        partial = out + ".part"
+        with zipfile.ZipFile(partial, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("manifest.json", raw_manifest)
+            zf.write(dex_file, "classes.dex")
+            if icon:
+                zf.write(icon, "icon.png")
+            else:
+                print("    no icon.png: the list draws an accent dot instead")
+        os.replace(partial, out)
+        print("    %s, %d bytes" % (out, os.path.getsize(out)))
+        return out
+    finally:
+        shutil.rmtree(room, ignore_errors=True)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(prog="python3 -m ttcuz.plugin",
+                                     description="Pack a folder into a .ctt ttcuz plugin.")
+    parser.add_argument("folder", help="the plugin's folder: manifest.json, java/, icon.png")
+    parser.add_argument("-o", "--out", help="where the .ctt goes (default: <folder>/<id>.ctt)")
+    parser.add_argument("--tools", default=os.path.join(ROOT, "tools"),
+                        help="where the downloaded tools are kept")
+    args = parser.parse_args(argv)
+    try:
+        build(args.folder, args.out, args.tools)
+    except (PluginError, RuntimeError, SystemExit) as error:
+        print("\n\033[1;31mPlugin build failed:\033[0m %s" % error, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
