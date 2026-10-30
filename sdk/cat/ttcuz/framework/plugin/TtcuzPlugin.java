@@ -5,9 +5,15 @@ import android.view.View;
 import android.widget.TextView;
 import java.util.List;
 
-/* loaded from: /home/danik/Downloads/ttcuz-work/oldapk/classes54.dex */
+/**
+ * A ttcuz plugin. Override the hooks it needs; ttcuz() is everything the mod hands it.
+ *
+ * API 2 (this one) checks the "permissions" list of manifest.json: onView and onScreen need "interface", onText and
+ * onNickname "text", onFeed "feed", onColour "colours", onRegion "region", onEvent "events", onAccountChanged
+ * "account". API 1 plugins keep working as they are.
+ */
 public abstract class TtcuzPlugin {
-    public static final int API = 1;
+    public static final int API = 2;
     private PluginContext context;
 
     public void onAccountChanged(String str) {
@@ -68,6 +74,14 @@ public abstract class TtcuzPlugin {
     }
 
     public void onView(View view) {
+    }
+
+    /** A screen came to the front and has been laid out: content is its android.R.id.content. Needs "interface". */
+    public void onScreen(Activity activity, android.view.ViewGroup content) {
+    }
+
+    /** An Android permission this plugin asked for with ttcuz().request(...) was answered. */
+    public void onPermission(String permission, boolean granted) {
     }
 
     public final void attach(PluginContext pluginContext) {

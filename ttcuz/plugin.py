@@ -36,7 +36,7 @@ API_SOURCES = next((path for path in (os.path.join(ROOT, "plugins", "sdk"), os.p
                     if os.path.isdir(path)), os.path.join(ROOT, "plugins", "sdk"))
 
 REQUIRED = ("id", "entry")
-API = 1                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API
+API = 2                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API (1 is still accepted)
 TIKTOK = "47.2.41"
 DEX_LIMIT = 16 * 1024 * 1024
 MANIFEST_LIMIT = 64 * 1024
@@ -81,8 +81,12 @@ def check_manifest(manifest: dict) -> dict:
     if not re.fullmatch(r"[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)+", str(manifest["entry"])):
         raise PluginError("entry %r is not a fully qualified class name" % manifest["entry"])
     api = manifest.get("api", API)
-    if api != API:
-        raise PluginError("api must be %d: the loader in this ttcuz speaks Plugin API %d" % (API, API))
+    if api not in range(1, API + 1):
+        raise PluginError("api must be 1..%d: the loader in this ttcuz speaks Plugin API up to %d" % (API, API))
+    permissions = manifest.get("permissions", [])
+    if not isinstance(permissions, list) or len(permissions) > 32 or not all(
+            isinstance(p, str) and re.fullmatch(r"[A-Za-z][\w.]{1,95}", p) for p in permissions):
+        raise PluginError("permissions must be a list of names such as \"network\" or \"android.permission.CAMERA\"")
     tiktok = manifest.get("tiktok", "")
     if tiktok not in ("", TIKTOK):
         raise PluginError("tiktok %r: this ttcuz is TikTok %s" % (tiktok, TIKTOK))

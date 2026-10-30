@@ -1,0 +1,13 @@
+{
+  "id": "com.example.quote",
+  "name": "Quote of the day",
+  "name_ru": "Цитата дня",
+  "version": "1.0",
+  "author": "ttcuz",
+  "description_ru": "Раз в день берёт короткую фразу из интернета и показывает уведомлением.",
+  "description": "Once a day fetches a short line from the internet and shows it as a notification.",
+  "entry": "com.example.quote.Main",
+  "api": 2,
+  "tiktok": "47.2.41",
+  "permissions": ["network", "notifications", "android.permission.POST_NOTIFICATIONS"]
+}

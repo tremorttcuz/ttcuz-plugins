@@ -5,6 +5,7 @@
   "author": "ttcuz",
   "description": "Пишет строку в журнал мода при каждом запуске TikTok.",
   "entry": "cat.ttcuz.hello.Hello",
-  "api": 1,
+  "api": 2,
+  "permissions": [],
   "tiktok": "47.2.41"
 }

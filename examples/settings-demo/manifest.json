@@ -1,0 +1,13 @@
+{
+  "id": "com.example.settings",
+  "name": "Settings demo",
+  "name_ru": "Пример настроек",
+  "version": "1.0",
+  "author": "ttcuz",
+  "description_ru": "Все виды строк настроек и реакция на их изменение.",
+  "description": "Every kind of settings row, and reacting to a change.",
+  "entry": "com.example.settings.Main",
+  "api": 2,
+  "tiktok": "47.2.41",
+  "permissions": ["account"]
+}

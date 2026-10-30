@@ -1,0 +1,13 @@
+{
+  "id": "com.example.floating",
+  "name": "Floating button",
+  "name_ru": "Плавающая кнопка",
+  "version": "1.0",
+  "author": "ttcuz",
+  "description": "Puts a round button over the feed; a tap shows how many times it was pressed.",
+  "description_ru": "Кнопка поверх ленты: по нажатию показывает, сколько раз её нажимали.",
+  "entry": "com.example.floating.Main",
+  "api": 2,
+  "tiktok": "47.2.41",
+  "permissions": ["interface"]
+}
