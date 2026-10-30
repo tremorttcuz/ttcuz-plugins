@@ -87,10 +87,97 @@ def check_manifest(manifest: dict) -> dict:
     if not isinstance(permissions, list) or len(permissions) > 32 or not all(
             isinstance(p, str) and re.fullmatch(r"[A-Za-z][\w.]{1,95}", p) for p in permissions):
         raise PluginError("permissions must be a list of names such as \"network\" or \"android.permission.CAMERA\"")
+    uses = manifest.get("uses", {})
+    if not isinstance(uses, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in uses.items()):
+        raise PluginError("uses must be an object: {\"network\": \"why the plugin needs it\"}")
     tiktok = manifest.get("tiktok", "")
     if tiktok not in ("", TIKTOK):
         raise PluginError("tiktok %r: this ttcuz is TikTok %s" % (tiktok, TIKTOK))
     return manifest
+
+
+# What in the code needs which permission; the same table the editor in the app marks lines with.
+USES = [
+    (r"\.http\s*\(", "network", "http()"),
+    (r"\.notify\s*\(", "notifications", "notify()"),
+    (r"\.(?:copy|paste)\s*\(", "clipboard", "copy()/paste()"),
+    (r"\.saveDownload\s*\(", "storage", "saveDownload()"),
+    (r"\.accountId\s*\(", "account", "accountId()"),
+    (r"\.(?:hostLoader\s*\(|(?:type|method|field)\s*\(\s*\")", "tiktok", "hostLoader()/type()/method()/field()"),
+    (r"\.(?:overlay|removeOverlay|find|views)\s*\(", "interface", "overlay()/find()/views()"),
+    (r"\.vibrate\s*\(", "android.permission.VIBRATE", "vibrate()"),
+    (r"\bon(?:View|Screen)\s*\(", "interface", "onView/onScreen"),
+    (r"\bon(?:Text|Nickname)\s*\(", "text", "onText/onNickname"),
+    (r"\bonFeed\s*\(", "feed", "onFeed"),
+    (r"\bonColour\s*\(", "colours", "onColour"),
+    (r"\bonRegion\s*\(", "region", "onRegion"),
+    (r"\bonEvent\s*\(", "events", "onEvent"),
+    (r"\bonAccountChanged\s*\(", "account", "onAccountChanged"),
+]
+ANDROID_USE = re.compile(r"(?:\"android\.permission\.|Manifest\.permission\.)([A-Z_]{2,64})")
+REASON = re.compile(r"//\s*@(?:uses|разрешение)\s+([A-Za-z][\w.]{1,95})\s*[:—-]?\s*(.*)$")
+
+
+def _code_of(lines):
+    """Each line without comments: (with strings, with strings blanked)."""
+    block = False
+    for line in lines:
+        plain, bare, quote, i = [], [], "", 0
+        while i < len(line):
+            c = line[i]
+            if quote:
+                plain.append(c)
+                if c == "\\" and i + 1 < len(line):
+                    i += 1
+                    plain.append(line[i])
+                elif c == quote:
+                    quote = ""
+                    bare.append(c)
+            elif block:
+                if line.startswith("*/", i):
+                    block, i = False, i + 1
+            elif line.startswith("/*", i):
+                block, i = True, i + 1
+            elif line.startswith("//", i):
+                break
+            else:
+                if c in "\"'":
+                    quote = c
+                plain.append(c)
+                bare.append(c)
+            i += 1
+        yield "".join(plain), "".join(bare)
+
+
+def permission_uses(text: str):
+    """[(line, permission, what)] for one Java file, 1-based lines."""
+    out = []
+    for number, (plain, bare) in enumerate(_code_of(text.split("\n")), 1):
+        for pattern, permission, what in USES:
+            if re.search(pattern, bare) and (number, permission) not in [(n, p) for n, p, _ in out]:
+                out.append((number, permission, what))
+        for match in ANDROID_USE.finditer(plain):
+            name = "android.permission." + match.group(1)
+            if (number, name) not in [(n, p) for n, p, _ in out]:
+                out.append((number, name, match.group(1)))
+    return out
+
+
+def permission_reasons(texts):
+    """{permission: reason} from // @uses comments, for manifest "uses"."""
+    found = {}
+    for text in texts:
+        for line in text.split("\n"):
+            match = REASON.search(line)
+            if not match or not match.group(2).strip():
+                continue
+            name = match.group(1)
+            if re.fullmatch(r"[A-Z_]{2,64}", name):
+                name = "android.permission." + name
+            reasons = found.setdefault(name, [])
+            if match.group(2).strip() not in reasons and len(reasons) < 4:
+                reasons.append(match.group(2).strip())
+    return {name: "; ".join(reasons)[:300] for name, reasons in found.items()}
 
 
 def build(folder: str, out: str | None, tools_dir: str) -> str:
@@ -110,6 +197,28 @@ def build(folder: str, out: str | None, tools_dir: str) -> str:
     sources = _java_files(os.path.join(folder, "java"))
     if not sources:
         raise PluginError("no .java under %s" % os.path.join(folder, "java"))
+
+    # every line that uses a permission, with the reason written next to it; the reasons go into the manifest
+    texts = {path: open(path, encoding="utf-8", errors="replace").read() for path in sources}
+    asked = manifest.get("permissions", [])
+    lacking = []
+    print("==> What the code does with permissions")
+    for path, text in texts.items():
+        for number, permission, what in permission_uses(text):
+            mark = "ok" if permission in asked else "NOT ASKED"
+            print("    %s:%d  %s  %s  [%s]" % (os.path.relpath(path, folder), number, permission, what, mark))
+            if permission not in asked and permission not in lacking:
+                lacking.append(permission)
+    if lacking and manifest.get("api", API) >= 2:
+        raise PluginError("the code uses %s, which manifest.json \"permissions\" does not ask for" % ", ".join(lacking))
+    reasons = permission_reasons(texts.values())
+    if reasons:
+        uses = dict(reasons)
+        uses.update(manifest.get("uses") or {})  # what the manifest says itself wins
+        manifest["uses"] = uses
+        raw_manifest = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+        for name, why in uses.items():
+            print("    why %s: %s" % (name, why))
     icon = os.path.join(folder, "icon.png")
     if os.path.isfile(icon):
         data = open(icon, "rb").read()

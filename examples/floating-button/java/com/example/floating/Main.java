@@ -14,6 +14,7 @@ import cat.ttcuz.framework.plugin.TtcuzPlugin;
 public final class Main extends TtcuzPlugin {
     private View button;
 
+    // @uses interface: ставит кнопку на каждый открытый экран
     @Override
     public void onScreen(Activity activity, ViewGroup content) {
         boolean feed = activity.getClass().getName().endsWith(".MainActivity");
@@ -38,6 +39,7 @@ public final class Main extends TtcuzPlugin {
         FrameLayout.LayoutParams size = new FrameLayout.LayoutParams(ttcuz().dp(52), ttcuz().dp(52));
         size.setMargins(0, 0, ttcuz().dp(16), ttcuz().dp(140));
         round.setLayoutParams(size);
+        // @uses interface: круглая кнопка поверх экрана
         button = ttcuz().overlay(activity, round, Gravity.BOTTOM | Gravity.END);
         ttcuz().animateIn(button);
     }

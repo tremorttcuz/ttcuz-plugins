@@ -39,6 +39,7 @@ public final class Hello extends TtcuzPlugin {
     }
 
     /** Every colour the mod redirects passes through here, on the drawing path: hand it back untouched. */
+    // @uses colours: только показывает хук: все цвета остаются как были
     @Override
     public int onColour(int colour) {
         return colour;

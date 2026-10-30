@@ -6,6 +6,6 @@
   "description": "Пишет строку в журнал мода при каждом запуске TikTok.",
   "entry": "cat.ttcuz.hello.Hello",
   "api": 2,
-  "permissions": [],
+  "permissions": ["colours"],
   "tiktok": "47.2.41"
 }

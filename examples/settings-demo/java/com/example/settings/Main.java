@@ -28,6 +28,7 @@ public final class Main extends TtcuzPlugin {
         }
     }
 
+    // @uses account: ведёт отдельный счётчик для каждого аккаунта
     @Override
     public void onAccountChanged(String uid) {
         // settings of one account: accountPrefs() is a different file for each account

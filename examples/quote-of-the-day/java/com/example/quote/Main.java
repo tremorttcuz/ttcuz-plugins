@@ -11,6 +11,7 @@ public final class Main extends TtcuzPlugin {
     public void onStart() {
         long last = ttcuz().prefs().getLong("last", 0);
         if (System.currentTimeMillis() - last < DAY) return;
+        // @uses POST_NOTIFICATIONS: Android 13+ спрашивает, можно ли показывать уведомления
         if (!ttcuz().has("android.permission.POST_NOTIFICATIONS")) {
             ttcuz().request("android.permission.POST_NOTIFICATIONS", granted -> { if (granted) fetch(); });
         } else {
@@ -21,8 +22,10 @@ public final class Main extends TtcuzPlugin {
     private void fetch() {
         ttcuz().away(() -> {                       // never on the main thread
             try {
+                // @uses network: скачивает одну цитату с api.github.com/zen
                 String line = ttcuz().http("https://api.github.com/zen").trim();
                 ttcuz().prefs().edit().putLong("last", System.currentTimeMillis()).putString("quote", line).apply();
+                // @uses notifications: показывает цитату уведомлением
                 ttcuz().notify("Цитата дня", line);
             } catch (java.io.IOException error) {
                 ttcuz().log("не получилось: " + error.getMessage());
