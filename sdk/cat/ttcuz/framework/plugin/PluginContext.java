@@ -125,6 +125,40 @@ public final class PluginContext implements AutoCloseable {
     /** A short vibration. Needs android.permission.VIBRATE. */
     public void vibrate(long millis) { throw new UnsupportedOperationException(); }
 
+    // effects (API 3, "effects"): RenderEffect on Android 12+, nothing on older phones
+    /** Called on every frame while it runs. */
+    public interface Frame { void frame(long frameTimeNanos); }
+    /** Whether this phone draws effects at all (Android 12+). */
+    public boolean effectsSupported() { throw new UnsupportedOperationException(); }
+    /** Whether shader() works here (Android 13+). */
+    public boolean shadersSupported() { throw new UnsupportedOperationException(); }
+    /** A Gaussian blur over the view, radius in px; 0 takes it off. Needs "effects". */
+    public boolean blur(View view, float radius) { throw new UnsupportedOperationException(); }
+    /** A blur stronger along one axis: blur(view, 30, 0) smears sideways. Needs "effects". */
+    public boolean blur(View view, float radiusX, float radiusY) { throw new UnsupportedOperationException(); }
+    /** Motion blur along the way the view moves on screen (strength 1 natural, up to 4); returns what stops it. Needs "effects". */
+    public Runnable motionBlur(View view, float strength) { throw new UnsupportedOperationException(); }
+    /** A 4x5 colour matrix (android.graphics.ColorMatrix layout) over the view. Needs "effects". */
+    public boolean colourMatrix(View view, float[] matrix) { throw new UnsupportedOperationException(); }
+    /** An AGSL shader over the view ("uniform shader content;"): the RuntimeShader, or null before Android 13. Needs "effects". */
+    public Object shader(View view, String agsl) { throw new UnsupportedOperationException(); }
+    /** Sets a float uniform of the view's shader and redraws. Needs "effects". */
+    public boolean uniform(View view, String name, float... values) { throw new UnsupportedOperationException(); }
+    /** Takes the effect off the view. Needs "effects". */
+    public void clearEffect(View view) { throw new UnsupportedOperationException(); }
+    /** A callback on every frame until the returned Runnable is run or the plugin stops. */
+    public Runnable everyFrame(Frame frame) { throw new UnsupportedOperationException(); }
+
+    // the mod itself (API 3, "mod"); accounts, tokens, keys and the admin's settings stay closed
+    /** The mod's settings open to plugins, with their values. Needs "mod". */
+    public java.util.Map<String, Object> modSettings() { throw new UnsupportedOperationException(); }
+    /** One mod setting (Boolean, Integer, Long, Float or String), or null. Needs "mod". */
+    public Object modSetting(String key) { throw new UnsupportedOperationException(); }
+    /** Changes a mod setting; null brings the default back. Other plugins hear the event "mod.setting". Needs "mod". */
+    public void setModSetting(String key, Object value) { throw new UnsupportedOperationException(); }
+    /** Draws the mod's settings screen again, if it is open. Needs "mod". */
+    public void refreshModScreen() { throw new UnsupportedOperationException(); }
+
     public void accountChanged() { throw new UnsupportedOperationException(); }
     @Override public void close() { throw new UnsupportedOperationException(); }
 }

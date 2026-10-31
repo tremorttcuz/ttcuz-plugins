@@ -22,6 +22,8 @@
 16. [События между плагинами](#16-события-между-плагинами)
 17. [Отладка](#17-отладка)
 18. [Публикация в магазин и проверка](#18-публикация-в-магазин-и-проверка)
+    - [18.1. Эффекты: размытие, motion blur, шейдеры](#181-эффекты-размытие-motion-blur-шейдеры-api-3)
+    - [18.2. Интерфейс и настройки мода](#182-интерфейс-и-настройки-мода-api-3)
 19. [Версии API и совместимость](#19-версии-api-и-совместимость)
 20. [Примеры](#20-примеры)
 21. [Ошибки и их решение](#21-ошибки-и-их-решение)
@@ -200,6 +202,8 @@ my-plugin.ctt
 | `region` | Регион, который видит TikTok | `onRegion` | — |
 | `events` | События мода и других плагинов | `onEvent` | — |
 | `account` | id вошедшего аккаунта | `onAccountChanged` | `accountId` |
+| `effects` (API 3) | Размытие, motion blur, цветовые матрицы, шейдеры AGSL поверх любых view | — | `blur`, `motionBlur`, `colourMatrix`, `shader`, `uniform`, `clearEffect` |
+| `mod` (API 3) | Интерфейс и настройки самого мода, свои строки в настройках мода | `onModScreen`, `onModPanel`, `onModSettings` | `modSettings`, `modSetting`, `setModSetting`, `refreshModScreen` |
 | `tiktok` | Скрытые методы и поля TikTok | — | `hostLoader`, `type`, `method`, `field` |
 | `network` | Интернет | — | `http` |
 | `notifications` | Свои уведомления | — | `notify` |
@@ -607,12 +611,76 @@ public void onEvent(String name, Object value) {       // нужно разре�
 
 ---
 
+## 18.1. Эффекты: размытие, motion blur, шейдеры (API 3)
+
+Разрешение `effects`. Всё рисуется через `RenderEffect` на потоке отрисовки — быстро и без копий кадра. Работает на Android 12+ (`effectsSupported()`), шейдеры — на Android 13+ (`shadersSupported()`); на старых телефонах вызовы просто ничего не делают и возвращают `false`/`null`. Когда плагин выключают, все его эффекты снимаются сами.
+
+| Метод | Что делает |
+|---|---|
+| `boolean blur(View v, float radius)` | Размытие по Гауссу, радиус в px (до 150); `0` убирает |
+| `boolean blur(View v, float rx, float ry)` | Размытие сильнее по одной оси: `blur(v, 30, 0)` — смаз вбок |
+| `Runnable motionBlur(View v, float strength)` | **Motion blur**: view размывается по направлению своего движения на экране, настолько, насколько сдвинулся с прошлого кадра. `strength` 1 — естественно, до 4. Пока view стоит — ничего не стоит по батарее. Возвращает то, что его выключает |
+| `boolean colourMatrix(View v, float[20] m)` | Цветовая матрица 4×5 (как `android.graphics.ColorMatrix`): ч/б, сепия, контраст, инверсия |
+| `Object shader(View v, String agsl)` | Свой шейдер AGSL поверх view; view внутри — `uniform shader content;`. Возвращает `RuntimeShader` |
+| `boolean uniform(View v, String name, float... values)` | Меняет `uniform float` шейдера и перерисовывает |
+| `void clearEffect(View v)` | Снимает эффект |
+| `Runnable everyFrame(Frame f)` | Колбэк на каждый кадр (без разрешения) — для своих анимаций; остановите, когда не нужен |
+
+```java
+// @uses effects: ч/б фильтр на весь экран
+ttcuz().colourMatrix(content, new float[]{
+    .33f,.33f,.33f,0,0,  .33f,.33f,.33f,0,0,  .33f,.33f,.33f,0,0,  0,0,0,1,0});
+
+// @uses effects: волна по экрану
+String agsl = "uniform shader content; uniform float t;"
+    + "half4 main(float2 p){ return content.eval(p + float2(sin(p.y/40+t)*6, 0)); }";
+ttcuz().shader(content, agsl);
+ttcuz().everyFrame(nanos -> ttcuz().uniform(content, "t", nanos / 1e9f));
+```
+
+Motion blur для ленты — готовый пример [`examples/motion-blur`](../examples/motion-blur): он вешает `motionBlur` на каждое видео в списках экрана.
+
+**Не перестарайтесь:** эффект на весь экран + `everyFrame` перерисовывают экран каждый кадр и едят батарею. `motionBlur` этим не страдает.
+
+## 18.2. Интерфейс и настройки мода (API 3)
+
+Разрешение `mod` (показывается пользователю как чувствительное). Даёт три вещи.
+
+**1. Свои строки прямо в настройках мода** — в разделе «Плагины», отдельной карточкой с названием плагина:
+
+```java
+// @uses mod: свой ползунок в настройках мода
+@Override public void onModSettings(PluginSettings page) {
+    page.toggle("on", "Включено", true).slider("strength", "Сила", 1, 4, 2);
+}
+```
+
+Строки те же, что в `onSettings` (раздел 10), значения хранятся в `prefs()` плагина, изменения приходят в `onPreferenceChanged`.
+
+**2. Вид экранов мода.** `onModScreen(Activity, ViewGroup root)` вызывается каждый раз, когда экран настроек мода нарисован заново, — можно перекрасить, переставить, спрятать или добавить что угодно. `onModPanel(String title, ViewGroup content)` — когда открывается любое окно мода (лист снизу); `title` — его заголовок.
+
+```java
+// @uses mod: скругляет все карточки настроек сильнее
+@Override public void onModScreen(Activity a, ViewGroup root) {
+    for (View v : ttcuz().views(root, View.class))
+        if (v.getBackground() instanceof android.graphics.drawable.GradientDrawable)
+            ((android.graphics.drawable.GradientDrawable) v.getBackground().mutate()).setCornerRadius(ttcuz().dp(28));
+}
+```
+
+Изменения во view живут до следующей перерисовки экрана — поэтому делайте их в `onModScreen`, он вызывается после каждой. `views()` требует ещё `interface`.
+
+**3. Настройки самого мода.** `modSettings()` — все открытые настройки мода с значениями (удобно посмотреть ключи), `modSetting(key)` — одна, `setModSetting(key, value)` — поменять (`Boolean`, `Integer`, `Long`, `Float`, `String`; `null` возвращает значение по умолчанию), `refreshModScreen()` — перерисовать экран настроек, если он открыт. Другие плагины узнают об изменении через событие `mod.setting`. Закрыты всегда: аккаунты, токены, ключи, PIN, всё админское, облако, резервные копии и настройки плагинов — такая попытка бросает `SecurityException`. Часть настроек применяется сразу, часть — после повторного открытия экрана или перезапуска TikTok.
+
 ## 19. Версии API и совместимость
 
 | API | Что появилось |
 |---|---|
 | 1 | Хуки экранов, текста, ников, ленты, цвета, региона, событий, настроек; `prefs`, `accountPrefs`, `data`, `bundle`, рефлексия, `log`, `toast`, `ui`, `later`, `away`, `emit` |
 | 2 | Разрешения в манифесте; `onScreen`, `onPermission`; `overlay`, `find`, `views`, `dialog`, `menu`, `palette`, `dp`, анимации; разрешения Android; `http`, `notify`, `copy`/`paste`, `saveDownload`, `open`, `share`, `vibrate` |
+| 3 | `effects`: `blur`, `motionBlur`, `colourMatrix`, `shader`/`uniform`, `clearEffect`, `everyFrame`; `mod`: `onModScreen`, `onModPanel`, `onModSettings`, `modSettings`/`modSetting`/`setModSetting`, `refreshModScreen` |
+
+Мод ставит плагины любого API от 1 до своего. Плагин API 3 на моде, который знает только API 2, не установится — с понятной причиной. Отметив `effects` или `mod` в редакторе, вы автоматически переводите плагин на API 3.
 
 **Как перейти с API 1 на API 2**: поставьте `"api": 2` и перечислите в `permissions` всё, что использует плагин. Если что-то забыли, плагин не запустится и в карточке будет написано, какого разрешения не хватает.
 
@@ -628,6 +696,7 @@ public void onEvent(String name, Object value) {       // нужно разре�
 | [`examples/floating-button`](../examples/floating-button) | Своя кнопка поверх ленты (`interface`, `onScreen`, `overlay`) |
 | [`examples/quote-of-the-day`](../examples/quote-of-the-day) | Сеть на фоновом потоке, уведомление, запрос разрешения Android |
 | [`examples/settings-demo`](../examples/settings-demo) | Все виды строк настроек, `onPreferenceChanged`, `accountPrefs` |
+| [`examples/motion-blur`](../examples/motion-blur) | API 3: motion blur ленты (`effects`) и своя настройка прямо в меню мода (`mod`, `onModSettings`) |
 
 ---
 
@@ -658,6 +727,7 @@ public void onEvent(String name, Object value) {       // нужно разре�
 | «Плагину нужны разрешения в manifest.json: …» | Хук переопределён без разрешения — добавьте названное в `permissions` |
 | `SecurityException: plugin … needs "…"` | Вызов `ttcuz()` без разрешения — добавьте его в `permissions` |
 | `the code uses …, which manifest.json "permissions" does not ask for` | Сборка нашла в коде вызов без разрешения (раздел 6.1) — добавьте его в `permissions` |
+| `SecurityException: … the mod setting "…" is not open to plugins` | Эта настройка мода закрыта для плагинов (аккаунты, токены, админское) |
 | `uses must be an object…` | `uses` в манифесте — не объект «разрешение → строка» |
 | «Не хватает разрешений» в редакторе | Красные строки под кодом — нажмите на них, чтобы отметить разрешения |
 | `http() on the main thread: use away()` | Сеть только из `away()` |

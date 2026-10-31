@@ -36,7 +36,7 @@ API_SOURCES = next((path for path in (os.path.join(ROOT, "plugins", "sdk"), os.p
                     if os.path.isdir(path)), os.path.join(ROOT, "plugins", "sdk"))
 
 REQUIRED = ("id", "entry")
-API = 2                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API (1 is still accepted)
+API = 3                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API (1 and 2 are still accepted)
 TIKTOK = "47.2.41"
 DEX_LIMIT = 16 * 1024 * 1024
 MANIFEST_LIMIT = 64 * 1024
@@ -113,6 +113,9 @@ USES = [
     (r"\bonRegion\s*\(", "region", "onRegion"),
     (r"\bonEvent\s*\(", "events", "onEvent"),
     (r"\bonAccountChanged\s*\(", "account", "onAccountChanged"),
+    (r"\.(?:blur|motionBlur|colourMatrix|shader|uniform|clearEffect)\s*\(", "effects", "blur()/motionBlur()/shader()"),
+    (r"\.(?:modSettings?|setModSetting|refreshModScreen)\s*\(", "mod", "modSetting()/setModSetting()"),
+    (r"\bonMod(?:Screen|Panel|Settings)\s*\(", "mod", "onModScreen/onModPanel/onModSettings"),
 ]
 ANDROID_USE = re.compile(r"(?:\"android\.permission\.|Manifest\.permission\.)([A-Z_]{2,64})")
 REASON = re.compile(r"//\s*@(?:uses|разрешение)\s+([A-Za-z][\w.]{1,95})\s*[:—-]?\s*(.*)$")
