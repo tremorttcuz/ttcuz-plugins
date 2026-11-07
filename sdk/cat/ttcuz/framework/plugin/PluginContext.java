@@ -13,7 +13,7 @@ import java.util.List;
  * Compile-time signatures of what ttcuz hands a plugin. The app provides the real class at run time, so the
  * plugin builder leaves this one out of the plugin's dex; the bodies here are never run.
  *
- * Plugin API 2: what a plugin may use follows "permissions" in its manifest.json. A call it did not ask for throws
+ * Plugin API 2 and 3: what a plugin may use follows "permissions" in its manifest.json. A call it did not ask for throws
  * SecurityException naming the permission. ttcuz permissions: interface, text, feed, colours, region, events,
  * network, notifications, clipboard, storage, account, tiktok; Android ones by their full name
  * (android.permission.CAMERA, RECORD_AUDIO, ACCESS_FINE_LOCATION, READ_CONTACTS, ...).

@@ -8,7 +8,7 @@ import java.util.List;
 /**
  * A ttcuz plugin. Override the hooks it needs; ttcuz() is everything the mod hands it.
  *
- * API 2 (this one) checks the "permissions" list of manifest.json: onView and onScreen need "interface", onText and
+ * API 2 and 3 (3 is this one: it adds "effects" and "mod") check the "permissions" list of manifest.json: onView and onScreen need "interface", onText and
  * onNickname "text", onFeed "feed", onColour "colours", onRegion "region", onEvent "events", onAccountChanged
  * "account". API 1 plugins keep working as they are.
  *
