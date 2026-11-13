@@ -1,0 +1,36 @@
+{
+  "island": 1,
+  "name": "Три кнопки",
+  "author": "ttcuz",
+  "bar": {
+    "height": 56,
+    "side": 70,
+    "lift": 10,
+    "radius": 28,
+    "fill": "card 90%",
+    "backdrop": false
+  },
+  "buttons": {
+    "order": ["home", "create", "profile"],
+    "x": [0.18, 0.5, 0.82],
+    "size": 26,
+    "color": "muted",
+    "selectedColor": "accent",
+    "labels": "none"
+  },
+  "indicator": {
+    "shape": "dot",
+    "height": 6,
+    "y": 0.85,
+    "color": "accent",
+    "stretch": 1.2
+  },
+  "create": {
+    "shape": "pill",
+    "size": 38,
+    "color": "accent",
+    "plusColor": "on accent",
+    "spin": 0
+  },
+  "motion": { "duration": 520, "easing": "bounce" }
+}

@@ -1,0 +1,70 @@
+{
+  "island": 1,
+  "name": "Неон",
+  "author": "ttcuz",
+  "bar": {
+    "height": 58,
+    "radius": 18,
+    "backdrop": true,
+    "fill": "#B00B0B14",
+    "strokeWidth": 0,
+    "shadow": "accent 45%",
+    "shadowRadius": 22,
+    "shadowY": 0,
+    "shader": [
+      "uniform float2 size;",
+      "uniform float time;",
+      "uniform half4 accent;",
+      "half4 main(float2 p) {",
+      "  float2 uv = p / size;",
+      "  float edge = min(min(p.x, size.x - p.x), min(p.y, size.y - p.y));",
+      "  float glow = smoothstep(3.0, 0.0, edge);",
+      "  float wave = 0.5 + 0.5 * sin(uv.x * 9.0 - time * 2.4);",
+      "  half3 neon = mix(accent.rgb, half3(0.2, 0.9, 1.0), half(wave));",
+      "  half3 body = half3(0.04, 0.04, 0.08);",
+      "  return half4(mix(body, neon, half(glow)), mix(0.72, 1.0, glow));",
+      "}"
+    ]
+  },
+  "buttons": {
+    "size": 25,
+    "color": "#80FFFFFF",
+    "selectedColor": "#FFFFFFFF",
+    "selectedScale": 1.15,
+    "labels": "none"
+  },
+  "indicator": {
+    "shape": "line",
+    "width": 28,
+    "height": 3,
+    "y": 0.86,
+    "stretch": 0.8,
+    "shader": [
+      "uniform float2 size;",
+      "uniform float time;",
+      "uniform half4 accent;",
+      "half4 main(float2 p) {",
+      "  float t = 0.5 + 0.5 * sin(time * 3.0 + p.x * 0.2);",
+      "  return half4(mix(accent.rgb, half3(1.0), half(t * 0.5)), 1.0);",
+      "}"
+    ]
+  },
+  "create": {
+    "shape": "circle",
+    "size": 42,
+    "plusColor": "#FFFFFFFF",
+    "spin": 90,
+    "shader": [
+      "uniform float2 size;",
+      "uniform float time;",
+      "uniform half4 accent;",
+      "half4 main(float2 p) {",
+      "  float2 c = p / size - 0.5;",
+      "  float a = atan(c.y, c.x) + time * 1.5;",
+      "  float k = 0.5 + 0.5 * sin(a * 3.0);",
+      "  return half4(mix(accent.rgb, half3(0.2, 0.9, 1.0), half(k)), 1.0);",
+      "}"
+    ]
+  },
+  "motion": { "duration": 420, "easing": "spring" }
+}
