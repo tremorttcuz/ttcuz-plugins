@@ -36,8 +36,10 @@ API_SOURCES = next((path for path in (os.path.join(ROOT, "plugins", "sdk"), os.p
                     if os.path.isdir(path)), os.path.join(ROOT, "plugins", "sdk"))
 
 REQUIRED = ("id", "entry")
-API = 3                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API (1 and 2 are still accepted)
-TIKTOK = "47.2.41"
+API = 4                 # cat.ttcuz.framework.plugin.TtcuzPlugin.API (1, 2 and 3 are still accepted)
+TIKTOK = "47.7.3"
+# plugins written for the previous release use the mod's API and still install
+TIKTOK_ALSO = ("47.2.41",)
 DEX_LIMIT = 16 * 1024 * 1024
 MANIFEST_LIMIT = 64 * 1024
 ICON_LIMIT = 1024 * 1024
@@ -91,7 +93,7 @@ def check_manifest(manifest: dict) -> dict:
     if not isinstance(uses, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in uses.items()):
         raise PluginError("uses must be an object: {\"network\": \"why the plugin needs it\"}")
     tiktok = manifest.get("tiktok", "")
-    if tiktok not in ("", TIKTOK):
+    if tiktok not in ("", TIKTOK) + TIKTOK_ALSO:
         raise PluginError("tiktok %r: this ttcuz is TikTok %s" % (tiktok, TIKTOK))
     return manifest
 
@@ -116,6 +118,11 @@ USES = [
     (r"\.(?:blur|motionBlur|colourMatrix|shader|uniform|clearEffect)\s*\(", "effects", "blur()/motionBlur()/shader()"),
     (r"\.(?:modSettings?|setModSetting|refreshModScreen)\s*\(", "mod", "modSetting()/setModSetting()"),
     (r"\bonMod(?:Screen|Panel|Settings)\s*\(", "mod", "onModScreen/onModPanel/onModSettings"),
+    (r"ttcuz\(\)\s*\.\s*(?:query|queryOne|tree|hide|unhide|inject)\s*\(", "interface", "query()/tree()/hide()/inject()"),
+    (r"ttcuz\(\)\s*\.\s*(?:click|longClick|tap|swipe|type)\s*\((?!\s*\")", "automation", "click()/tap()/swipe()/type()"),
+    (r"ttcuz\(\)\s*\.\s*(?:video|videoId|playing|pause|play|speed|saveVideo)\s*\(", "player", "video()/pause()/play()/speed()"),
+    (r"ttcuz\(\)\s*\.\s*call\s*\(", "events", "call()"),
+    (r"\bonTikTok\s*\(", "watch", "onTikTok"),
 ]
 ANDROID_USE = re.compile(r"(?:\"android\.permission\.|Manifest\.permission\.)([A-Z_]{2,64})")
 REASON = re.compile(r"//\s*@(?:uses|разрешение)\s+([A-Za-z][\w.]{1,95})\s*[:—-]?\s*(.*)$")

@@ -13,9 +13,10 @@ import java.util.List;
  * Compile-time signatures of what ttcuz hands a plugin. The app provides the real class at run time, so the
  * plugin builder leaves this one out of the plugin's dex; the bodies here are never run.
  *
- * Plugin API 2 and 3: what a plugin may use follows "permissions" in its manifest.json. A call it did not ask for throws
+ * Plugin API 4. What a plugin may use follows "permissions" in its manifest.json. A call it did not ask for throws
  * SecurityException naming the permission. ttcuz permissions: interface, text, feed, colours, region, events,
- * network, notifications, clipboard, storage, account, tiktok; Android ones by their full name
+ * network, notifications, clipboard, storage, account, tiktok, effects, mod (API 3), watch, automation, player
+ * (API 4); Android ones by their full name
  * (android.permission.CAMERA, RECORD_AUDIO, ACCESS_FINE_LOCATION, READ_CONTACTS, ...).
  */
 public final class PluginContext implements AutoCloseable {
@@ -23,6 +24,8 @@ public final class PluginContext implements AutoCloseable {
     public interface Pick { void picked(int index); }
     /** The answer to request(). */
     public interface Result { void done(boolean granted); }
+    /** Something a plugin exposes to the others (API 4). */
+    public interface Callable { Object call(Object argument) throws Exception; }
 
     /** The plugin's id from its manifest. */
     public final String id = null;
@@ -30,7 +33,7 @@ public final class PluginContext implements AutoCloseable {
     private PluginContext() { throw new UnsupportedOperationException("provided by ttcuz"); }
 
     // ---- permissions
-    /** The plugin API from the manifest (1 or 2). */
+    /** The plugin API from the manifest (1 to 4). */
     public int api() { throw new UnsupportedOperationException(); }
     /** The permissions from the manifest. */
     public List<String> permissions() { throw new UnsupportedOperationException(); }
@@ -158,6 +161,51 @@ public final class PluginContext implements AutoCloseable {
     public void setModSetting(String key, Object value) { throw new UnsupportedOperationException(); }
     /** Draws the mod's settings screen again, if it is open. Needs "mod". */
     public void refreshModScreen() { throw new UnsupportedOperationException(); }
+
+    // ---- API 4: selectors and the view tree ("interface")
+    /** Views under root matching "#id", "@text", "@=exact text", "~description" or ".Class"; "|" joins alternatives. */
+    public List<View> query(View root, String selector) { throw new UnsupportedOperationException(); }
+    /** The first match, or null. Needs "interface". */
+    public View queryOne(View root, String selector) { throw new UnsupportedOperationException(); }
+    /** The view tree under root as indented text: class, #id, @text, ~description, size. Needs "interface". */
+    public String tree(View root) { throw new UnsupportedOperationException(); }
+    /** Where a view is on screen: {left, top, right, bottom}. */
+    public int[] bounds(View view) { throw new UnsupportedOperationException(); }
+    /** Views matching the selector stay hidden on every screen until unhide() or the plugin stops. Needs "interface". */
+    public void hide(String selector) { throw new UnsupportedOperationException(); }
+    public void unhide(String selector) { throw new UnsupportedOperationException(); }
+    /** Puts a view into TikTok's layout right after (or before) an existing one. Needs "interface". */
+    public void inject(View anchor, View view, boolean after) { throw new UnsupportedOperationException(); }
+
+    // ---- API 4: acting for the person ("automation")
+    public boolean click(View view) { throw new UnsupportedOperationException(); }
+    public boolean longClick(View view) { throw new UnsupportedOperationException(); }
+    /** A finger tap at a point of the screen. */
+    public void tap(Activity screen, float x, float y) { throw new UnsupportedOperationException(); }
+    /** A drag over the given milliseconds; returns at once. */
+    public void swipe(Activity screen, float x1, float y1, float x2, float y2, long millis) { throw new UnsupportedOperationException(); }
+    /** Replaces a field's text and moves the cursor to the end. */
+    public void type(android.widget.TextView field, CharSequence text) { throw new UnsupportedOperationException(); }
+
+    // ---- API 4: the video in front ("player")
+    /** The post on screen (TikTok's Aweme) or null. */
+    public Object video() { throw new UnsupportedOperationException(); }
+    public String videoId() { throw new UnsupportedOperationException(); }
+    public boolean playing() { throw new UnsupportedOperationException(); }
+    public boolean pause() { throw new UnsupportedOperationException(); }
+    public boolean play() { throw new UnsupportedOperationException(); }
+    /** Playback speed, 0.5 to 3. */
+    public boolean speed(float value) { throw new UnsupportedOperationException(); }
+    /** Saves a post the way the mod's download does. Needs "player" and "storage". */
+    public void saveVideo(Object post) { throw new UnsupportedOperationException(); }
+
+    // ---- API 4: plugins together, repeating work
+    /** Lets other plugins call this one: ttcuz().call(thisId, name, argument). null removes it. */
+    public void expose(String name, Callable callable) { throw new UnsupportedOperationException(); }
+    /** Calls what another running plugin exposed; null when it is not there. Needs "events". */
+    public Object call(String plugin, String name, Object argument) throws Exception { throw new UnsupportedOperationException(); }
+    /** Runs work on the main thread every millis (at least 250) while TikTok is on screen; the Runnable stops it. */
+    public Runnable every(Runnable work, long millis) { throw new UnsupportedOperationException(); }
 
     public void accountChanged() { throw new UnsupportedOperationException(); }
     @Override public void close() { throw new UnsupportedOperationException(); }

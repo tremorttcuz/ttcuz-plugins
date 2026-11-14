@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/* loaded from: /home/danik/Downloads/ttcuz-work/oldapk/classes54.dex */
 public final class PluginSettings {
     private final List<Row> rows = new ArrayList();
 
